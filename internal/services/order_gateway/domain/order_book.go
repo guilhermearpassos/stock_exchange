@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/quickfixgo/enum"
 	"github.com/shopspring/decimal"
+	"slices"
 )
 
 type OrderBook struct {
@@ -218,13 +219,7 @@ func (b *OrderBook) add(order *Order) error {
 				if err != nil {
 					return err
 				}
-				previousLevels := make([]*bookLevel, 0)
-				if i > 0 {
-					previousLevels = levels[:i-1]
-				}
-				remainingLevels := levels[i:]
-				levels = append(previousLevels, newLevel)
-				levels = append(levels, remainingLevels...)
+				levels = slices.Insert(levels, i, newLevel)
 				break
 			} else if i == len(levels)-1 {
 
@@ -263,13 +258,7 @@ func (b *OrderBook) add(order *Order) error {
 				if err != nil {
 					return err
 				}
-				previousLevels := make([]*bookLevel, 0)
-				if i > 0 {
-					previousLevels = levels[:i-1]
-				}
-				remainingLevels := levels[i:]
-				levels = append(previousLevels, newLevel)
-				levels = append(levels, remainingLevels...)
+				levels = slices.Insert(levels, i, newLevel)
 				break
 			} else if i == len(levels)-1 {
 
