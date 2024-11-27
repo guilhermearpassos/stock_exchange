@@ -345,7 +345,7 @@ func (b *OrderBook) Display() string {
 		level := b.bidLevels[i]
 		qty := decimal.Zero
 		for _, order := range level.orders {
-			qty = qty.Add(order.quantity)
+			qty = qty.Add(order.leavesQty)
 		}
 		repr += fmt.Sprintf("%.2f: %.2f\n", level.px.InexactFloat64(), qty.InexactFloat64())
 	}
@@ -354,7 +354,7 @@ func (b *OrderBook) Display() string {
 		level := b.askLevels[i]
 		qty := decimal.Zero
 		for _, order := range level.orders {
-			qty = qty.Add(order.quantity)
+			qty = qty.Add(order.leavesQty)
 		}
 		repr += fmt.Sprintf("%.2f: %.2f\n", level.px.InexactFloat64(), qty.InexactFloat64())
 	}
