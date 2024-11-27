@@ -211,6 +211,7 @@ func (b *OrderBook) add(order *Order) error {
 				if err != nil {
 					return err
 				}
+				break
 			} else if level.px.LessThan(px) {
 				newLevel := newBookLevel([]*Order{}, px)
 				err := newLevel.Add(order)
@@ -224,10 +225,16 @@ func (b *OrderBook) add(order *Order) error {
 				remainingLevels := levels[i:]
 				levels = append(previousLevels, newLevel)
 				levels = append(levels, remainingLevels...)
+				break
 			} else if i == len(levels)-1 {
 
 				newLevel := newBookLevel([]*Order{}, px)
+				err := newLevel.Add(order)
+				if err != nil {
+					return err
+				}
 				levels = append(levels, newLevel)
+				break
 			}
 		}
 		if len(levels) == 0 {
@@ -267,7 +274,12 @@ func (b *OrderBook) add(order *Order) error {
 			} else if i == len(levels)-1 {
 
 				newLevel := newBookLevel([]*Order{}, px)
+				err := newLevel.Add(order)
+				if err != nil {
+					return err
+				}
 				levels = append(levels, newLevel)
+				break
 			}
 		}
 		if len(levels) == 0 {
@@ -339,7 +351,7 @@ func (b *OrderBook) Display() string {
 	}
 	repr += "\n=====\nask:\n"
 	for i := 0; i < len(b.askLevels); i++ {
-		level := b.bidLevels[i]
+		level := b.askLevels[i]
 		qty := decimal.Zero
 		for _, order := range level.orders {
 			qty = qty.Add(order.quantity)

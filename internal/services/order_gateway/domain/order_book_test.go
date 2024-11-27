@@ -450,6 +450,11 @@ func TestOrderBook_MatchOrAddMarketOrder(t *testing.T) {
 }
 
 func assertBooksEqual(t *testing.T, book *OrderBook, wantBook OrderBook) {
+	display := book.Display()
+	wantDisplay := wantBook.Display()
+	if display != wantDisplay {
+		t.Errorf("books display differ: want %s got %s", wantDisplay, display)
+	}
 	if len(book.askLevels) != len(wantBook.askLevels) {
 		t.Errorf("book levels differ - ask %d vs %d", len(book.askLevels), len(wantBook.askLevels))
 	}
@@ -470,12 +475,13 @@ func assertBooksEqual(t *testing.T, book *OrderBook, wantBook OrderBook) {
 func TestOrderBook_MatchOrAddLimitOrder(t *testing.T) {
 	sellPx1, _ := decimal.NewFromString("46.72")
 	sellPx2, _ := decimal.NewFromString("46.73")
-	//sellPx3, _ := decimal.NewFromString("46.74")
+	sellPx3, _ := decimal.NewFromString("46.74")
 	//sellPx4, _ := decimal.NewFromString("46.75")
 	buyPx1, _ := decimal.NewFromString("46.52")
-	//buyPx2, _ := decimal.NewFromString("46.51")
-	//buyPx3, _ := decimal.NewFromString("46.50")
+	buyPx2, _ := decimal.NewFromString("46.51")
+	buyPx3, _ := decimal.NewFromString("46.50")
 	//buyPx4, _ := decimal.NewFromString("46.49")
+	buyPxClose, _ := decimal.NewFromString("46.71")
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T) *OrderBook
@@ -631,12 +637,12 @@ func TestOrderBook_MatchOrAddLimitOrder(t *testing.T) {
 					bidLevels: []*bookLevel{
 						newBookLevel([]*Order{
 							NewOrder("1", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
-						}, sellPx1)},
+								BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+						}, buyPx1)},
 				}
 			},
 			order: NewOrder("2", "VALE3", "a", "b",
-				BUY, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+				BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
 			want:    []*Order{},
 			wantErr: false,
 			checkBook: func(t *testing.T, book *OrderBook) {
@@ -646,13 +652,13 @@ func TestOrderBook_MatchOrAddLimitOrder(t *testing.T) {
 					askLevels: []*bookLevel{},
 					bidLevels: []*bookLevel{
 						newBookLevel([]*Order{
-							NewOrder("2", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
-						}, sellPx2),
-						newBookLevel([]*Order{
 							NewOrder("1", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
-						}, sellPx1),
+								BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+						}, buyPx1),
+						newBookLevel([]*Order{
+							NewOrder("2", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+						}, buyPx2),
 					},
 				}
 				assertBooksEqual(t, book, wantBook)
@@ -669,12 +675,12 @@ func TestOrderBook_MatchOrAddLimitOrder(t *testing.T) {
 					bidLevels: []*bookLevel{
 						newBookLevel([]*Order{
 							NewOrder("2", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
-						}, sellPx2)},
+								BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+						}, buyPx2)},
 				}
 			},
 			order: NewOrder("1", "VALE3", "a", "b",
-				BUY, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+				BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
 			want:    []*Order{},
 			wantErr: false,
 			checkBook: func(t *testing.T, book *OrderBook) {
@@ -684,19 +690,262 @@ func TestOrderBook_MatchOrAddLimitOrder(t *testing.T) {
 					askLevels: []*bookLevel{},
 					bidLevels: []*bookLevel{
 						newBookLevel([]*Order{
-							NewOrder("2", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
-						}, sellPx2),
-						newBookLevel([]*Order{
 							NewOrder("1", "VALE3", "a", "b",
-								BUY, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
-						}, sellPx1),
+								BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+						}, buyPx1),
+						newBookLevel([]*Order{
+							NewOrder("2", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+						}, buyPx2),
 					},
 				}
 				assertBooksEqual(t, book, wantBook)
 				return
 			},
 		},
+		{
+			name: "BUY Limit Order add new level to the full book",
+			setup: func(t *testing.T) *OrderBook {
+
+				return &OrderBook{
+					symbol: "VALE3",
+					askLevels: []*bookLevel{
+						newBookLevel([]*Order{
+							NewOrder("1", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+						}, sellPx1),
+						newBookLevel([]*Order{
+							NewOrder("2", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+						}, sellPx2),
+						newBookLevel([]*Order{
+							NewOrder("3", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+						}, sellPx3),
+					},
+					bidLevels: []*bookLevel{
+						newBookLevel([]*Order{
+							NewOrder("4", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+						}, buyPx1),
+						newBookLevel([]*Order{
+							NewOrder("5", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+						}, buyPx2),
+						newBookLevel([]*Order{
+							NewOrder("6", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+						}, buyPx3),
+					},
+				}
+			},
+			order: NewOrder("7", "VALE3", "a", "b",
+				BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+			want:    []*Order{},
+			wantErr: false,
+			checkBook: func(t *testing.T, book *OrderBook) {
+
+				wantBook := OrderBook{
+					symbol: "VALE3",
+					askLevels: []*bookLevel{
+						newBookLevel([]*Order{
+							NewOrder("1", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+						}, sellPx1),
+						newBookLevel([]*Order{
+							NewOrder("2", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+						}, sellPx2),
+						newBookLevel([]*Order{
+							NewOrder("3", "VALE3", "a", "b",
+								SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+						}, sellPx3),
+					},
+					bidLevels: []*bookLevel{
+						newBookLevel([]*Order{
+							NewOrder("7", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+						}, buyPxClose),
+						newBookLevel([]*Order{
+							NewOrder("4", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+						}, buyPx1),
+						newBookLevel([]*Order{
+							NewOrder("5", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+						}, buyPx2),
+						newBookLevel([]*Order{
+							NewOrder("6", "VALE3", "a", "b",
+								BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+						}, buyPx3),
+					},
+				}
+				assertBooksEqual(t, book, wantBook)
+				return
+			},
+		},
+		//{
+		//	name: "BUY Limit Order add new level to bottom",
+		//	setup: func(t *testing.T) *OrderBook {
+		//
+		//		return &OrderBook{
+		//			symbol: "VALE3",
+		//			askLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("1", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+		//				}, sellPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("2", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+		//				}, sellPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("3", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+		//				}, sellPx3),
+		//			},
+		//			bidLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("4", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+		//				}, buyPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("5", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+		//				}, buyPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("6", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+		//				}, buyPx3),
+		//			},
+		//		}
+		//	},
+		//	order: NewOrder("7", "VALE3", "a", "b",
+		//		BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+		//	want:    []*Order{},
+		//	wantErr: false,
+		//	checkBook: func(t *testing.T, book *OrderBook) {
+		//
+		//		wantBook := OrderBook{
+		//			symbol: "VALE3",
+		//			askLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("1", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+		//				}, sellPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("2", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+		//				}, sellPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("3", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+		//				}, sellPx3),
+		//			},
+		//			bidLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("7", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+		//				}, buyPxClose),
+		//				newBookLevel([]*Order{
+		//					NewOrder("4", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+		//				}, buyPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("5", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+		//				}, buyPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("6", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+		//				}, buyPx3),
+		//			},
+		//		}
+		//		assertBooksEqual(t, book, wantBook)
+		//		return
+		//	},
+		//},
+		//{
+		//	name: "BUY Limit Order add new level to the full book",
+		//	setup: func(t *testing.T) *OrderBook {
+		//
+		//		return &OrderBook{
+		//			symbol: "VALE3",
+		//			askLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("1", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+		//				}, sellPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("2", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+		//				}, sellPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("3", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+		//				}, sellPx3),
+		//			},
+		//			bidLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("4", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+		//				}, buyPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("5", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+		//				}, buyPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("6", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+		//				}, buyPx3),
+		//			},
+		//		}
+		//	},
+		//	order: NewOrder("7", "VALE3", "a", "b",
+		//		BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+		//	want:    []*Order{},
+		//	wantErr: false,
+		//	checkBook: func(t *testing.T, book *OrderBook) {
+		//
+		//		wantBook := OrderBook{
+		//			symbol: "VALE3",
+		//			askLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("1", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx1, decimal.NewFromInt(200)),
+		//				}, sellPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("2", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx2, decimal.NewFromInt(200)),
+		//				}, sellPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("3", "VALE3", "a", "b",
+		//						SELL, enum.OrdType_LIMIT, sellPx3, decimal.NewFromInt(200)),
+		//				}, sellPx3),
+		//			},
+		//			bidLevels: []*bookLevel{
+		//				newBookLevel([]*Order{
+		//					NewOrder("7", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPxClose, decimal.NewFromInt(200)),
+		//				}, buyPxClose),
+		//				newBookLevel([]*Order{
+		//					NewOrder("4", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx1, decimal.NewFromInt(200)),
+		//				}, buyPx1),
+		//				newBookLevel([]*Order{
+		//					NewOrder("5", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx2, decimal.NewFromInt(200)),
+		//				}, buyPx2),
+		//				newBookLevel([]*Order{
+		//					NewOrder("6", "VALE3", "a", "b",
+		//						BUY, enum.OrdType_LIMIT, buyPx3, decimal.NewFromInt(200)),
+		//				}, buyPx3),
+		//			},
+		//		}
+		//		assertBooksEqual(t, book, wantBook)
+		//		return
+		//	},
+		//},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
