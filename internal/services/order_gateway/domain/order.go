@@ -24,6 +24,24 @@ const (
 	OrderStatusCanceled             = 4
 )
 
+type OrderExecution struct {
+	quantity decimal.Decimal
+	price    decimal.Decimal
+	isFill   bool
+}
+
+func (o OrderExecution) Quantity() decimal.Decimal {
+	return o.quantity
+}
+
+func (o OrderExecution) Price() decimal.Decimal {
+	return o.price
+}
+
+func (o OrderExecution) IsFill() bool {
+	return o.isFill
+}
+
 type Order struct {
 	clOrdID          string
 	symbol           string
@@ -40,6 +58,12 @@ type Order struct {
 	lastExecPx       decimal.Decimal
 	executedNotional decimal.Decimal
 	status           OrderStatus
+	executions       []*OrderExecution
+	orderId          string
+}
+
+func (o *Order) Executions() []*OrderExecution {
+	return o.executions
 }
 
 func (o *Order) ClOrdID() string {
@@ -110,6 +134,7 @@ func NewOrder(clOrdID string,
 	ordType enum.OrdType,
 	price decimal.Decimal,
 	quantity decimal.Decimal,
+	orderId string,
 ) *Order {
 	return &Order{
 		clOrdID:          clOrdID,
@@ -127,6 +152,8 @@ func NewOrder(clOrdID string,
 		lastExecQuantity: decimal.Decimal{},
 		lastExecPx:       decimal.Decimal{},
 		status:           OrderStatusOpen,
+		executions:       make([]*OrderExecution, 0),
+		orderId:          orderId,
 	}
 }
 
@@ -151,9 +178,18 @@ func (o *Order) Execute(price, quantity decimal.Decimal) error {
 	if o.leavesQty.Equal(decimal.Zero) {
 		o.status = OrderStatusFilled
 	}
+	o.executions = append(o.executions, &OrderExecution{
+		quantity: quantity,
+		price:    price,
+		isFill:   o.executedQuantity.Equal(o.quantity),
+	})
 	return nil
 }
 
 func (o *Order) Cancel() {
 	o.status = OrderStatusCanceled
+}
+
+func (o *Order) OrderID() string {
+	return o.orderId
 }
