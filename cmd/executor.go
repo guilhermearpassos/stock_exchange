@@ -63,7 +63,7 @@ func execute(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error reading cfg: %s,", err)
 	}
 
-	logFactory := quickfix.NewScreenLogFactory()
+	logFactory, err := quickfix.NewFileLogFactory(appSettings)
 	if err != nil {
 		return fmt.Errorf("error creating file log factory: %s,", err)
 	}

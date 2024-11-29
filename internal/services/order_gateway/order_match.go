@@ -7,9 +7,11 @@ import (
 	"github.com/quickfixgo/field"
 	"github.com/quickfixgo/fix44/executionreport"
 	"github.com/quickfixgo/fix44/marketdatarequest"
+	"github.com/quickfixgo/fix44/newordercross"
 	"github.com/quickfixgo/fix44/newordersingle"
 	"github.com/quickfixgo/fix44/ordercancelrequest"
 	"github.com/quickfixgo/quickfix"
+	"github.com/shopspring/decimal"
 	"log"
 	"stock_exchange/internal/services/order_gateway/domain"
 	"strconv"
@@ -32,6 +34,7 @@ func NewApplication() *Application {
 	app.AddRoute(newordersingle.Route(app.onNewOrderSingle))
 	app.AddRoute(ordercancelrequest.Route(app.onOrderCancelRequest))
 	app.AddRoute(marketdatarequest.Route(app.onMarketDataRequest))
+	app.AddRoute(newordercross.Route(app.onNewOrderCross))
 
 	return app
 }
@@ -116,6 +119,9 @@ func (a *Application) newOrderSingleToDomain(msg newordersingle.NewOrderSingle) 
 	return order, nil
 }
 
+func (a *Application) onNewOrderCross(msg newordercross.NewOrderCross, sessionID quickfix.SessionID) quickfix.MessageRejectError {
+	panic("implement me")
+}
 func (a *Application) onNewOrderSingle(msg newordersingle.NewOrderSingle, sessionID quickfix.SessionID) quickfix.MessageRejectError {
 	order, err := a.newOrderSingleToDomain(msg)
 	if err != nil {
@@ -126,6 +132,18 @@ func (a *Application) onNewOrderSingle(msg newordersingle.NewOrderSingle, sessio
 	if !ok {
 		book = domain.NewOrderBook(symbol)
 		a.orderBookBySymbol[symbol] = book
+	}
+	a.execID += 1
+	execID := a.execID
+	event := ExecReportRequiredEvent{
+		order:     order,
+		execution: &domain.OrderExecution{},
+	}
+	er := generateExecutionReport(execID, &event)
+	msgNew := er.ToMessage()
+	rejErr := quickfix.SendToTarget(msgNew, sessionID)
+	if rejErr != nil {
+		return quickfix.NewMessageRejectError(rejErr.Error(), -1, nil)
 	}
 	matches, err2 := book.MatchOrAdd(context.TODO(), order)
 	if err2 != nil {
@@ -157,40 +175,9 @@ func (a *Application) onNewOrderSingle(msg newordersingle.NewOrderSingle, sessio
 func (a *Application) sendExecutionReports(events []*ExecReportRequiredEvent) error {
 	for _, event := range events {
 		log.Printf("%v", event)
-		ordIDField := field.NewOrderID(event.order.OrderID())
 		a.execID += 1
-		execIDField := field.NewExecID(strconv.Itoa(a.execID))
-		execType := enum.ExecType_PARTIAL_FILL
-		if event.execution.IsFill() {
-			execType = enum.ExecType_FILL
-		}
-		execTypeField := field.NewExecType(execType)
-		var ordStatus enum.OrdStatus
-		switch event.order.Status() {
-		case domain.OrderStatusOpen:
-			ordStatus = enum.OrdStatus_PARTIALLY_FILLED
-		case domain.OrderStatusFilled:
-			ordStatus = enum.OrdStatus_FILLED
-		case domain.OrderStatusCanceled:
-			break
-		case domain.OrderStatusRejected:
-			break
-		}
-		OrdStatusField := field.NewOrdStatus(ordStatus)
-		var side enum.Side
-		switch event.order.Side() {
-		case domain.BUY:
-			side = enum.Side_BUY
-		case domain.SELL:
-			side = enum.Side_SELL
-		}
-		sideField := field.NewSide(side)
-		leavesQtyField := field.NewLeavesQty(event.order.LeavesQty(), 2)
-		cumQtyField := field.NewCumQty(event.order.ExecutedQuantity(), 2)
-		avgPxField := field.NewAvgPx(event.order.ExecutedNotional().Div(event.order.ExecutedQuantity()), 2)
-		er := executionreport.New(ordIDField, execIDField, execTypeField, OrdStatusField, sideField, leavesQtyField, cumQtyField, avgPxField)
-		er.SetLastQty(event.execution.Quantity(), 2)
-		er.SetLastPx(event.execution.Price(), 2)
+		execID := a.execID
+		er := generateExecutionReport(execID, event)
 		msg := er.ToMessage()
 		var err error
 		for i := 0; i < 25; i++ {
@@ -209,6 +196,55 @@ func (a *Application) sendExecutionReports(events []*ExecReportRequiredEvent) er
 		}
 	}
 	return nil
+}
+
+func generateExecutionReport(execID int, event *ExecReportRequiredEvent) executionreport.ExecutionReport {
+	ordIDField := field.NewOrderID(event.order.OrderID())
+	execIDField := field.NewExecID(strconv.Itoa(execID))
+	execType := enum.ExecType_PARTIAL_FILL
+	if event.execution.Quantity().Equal(decimal.Zero) {
+		execType = enum.ExecType_NEW
+	}
+	if event.execution.IsFill() {
+		execType = enum.ExecType_FILL
+	}
+	execTypeField := field.NewExecType(execType)
+	var ordStatus enum.OrdStatus
+	if event.order.ExecutedQuantity().Equal(decimal.Zero) {
+		ordStatus = enum.OrdStatus_NEW
+	} else if event.order.Status() == domain.OrderStatusFilled {
+		ordStatus = enum.OrdStatus_FILLED
+	} else if event.order.Status() == domain.OrderStatusOpen {
+		ordStatus = enum.OrdStatus_PARTIALLY_FILLED
+	}
+	switch event.order.Status() {
+	case domain.OrderStatusOpen:
+	case domain.OrderStatusFilled:
+	case domain.OrderStatusCanceled:
+		break
+	case domain.OrderStatusRejected:
+		break
+	}
+	OrdStatusField := field.NewOrdStatus(ordStatus)
+	var side enum.Side
+	switch event.order.Side() {
+	case domain.BUY:
+		side = enum.Side_BUY
+	case domain.SELL:
+		side = enum.Side_SELL
+	}
+	sideField := field.NewSide(side)
+	leavesQtyField := field.NewLeavesQty(event.order.LeavesQty(), 2)
+	cumQtyField := field.NewCumQty(event.order.ExecutedQuantity(), 2)
+	avgPx := decimal.Zero
+	if event.order.ExecutedQuantity().GreaterThan(decimal.Zero) {
+		avgPx = event.order.ExecutedNotional().Div(event.order.ExecutedQuantity())
+	}
+	avgPxField := field.NewAvgPx(avgPx, 2)
+	er := executionreport.New(ordIDField, execIDField, execTypeField, OrdStatusField, sideField, leavesQtyField, cumQtyField, avgPxField)
+	er.SetLastQty(event.execution.Quantity(), 2)
+	er.SetLastPx(event.execution.Price(), 2)
+	return er
 }
 
 func (a *Application) onOrderCancelRequest(msg ordercancelrequest.OrderCancelRequest, sessionID quickfix.SessionID) quickfix.MessageRejectError {
